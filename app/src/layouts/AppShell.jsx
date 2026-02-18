@@ -10,6 +10,7 @@ import {
   Clock,
   CheckSquare,
   Rocket,
+  BadgeCheck,
 } from 'lucide-react'
 
 const navItems = [
@@ -27,8 +28,9 @@ const analyzerItems = [
 ]
 
 const qualityItems = [
-  { to: '/dashboard/test', label: 'Test Checklist', icon: CheckSquare },
-  { to: '/dashboard/ship', label: 'Ship',           icon: Rocket },
+  { to: '/dashboard/test',  label: 'Test Checklist', icon: CheckSquare },
+  { to: '/dashboard/proof', label: 'Proof',           icon: BadgeCheck },
+  { to: '/dashboard/ship',  label: 'Ship',            icon: Rocket },
 ]
 
 export default function AppShell() {

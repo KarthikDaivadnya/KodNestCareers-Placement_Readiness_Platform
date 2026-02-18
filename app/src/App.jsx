@@ -11,6 +11,7 @@ import Results      from './pages/Results'
 import History      from './pages/History'
 import TestChecklist from './pages/TestChecklist'
 import Ship          from './pages/Ship'
+import Proof         from './pages/Proof'
 
 const router = createBrowserRouter([
   {
@@ -31,6 +32,7 @@ const router = createBrowserRouter([
       { path: 'history',            element: <History /> },
       { path: 'test',               element: <TestChecklist /> },
       { path: 'ship',               element: <Ship /> },
+      { path: 'proof',              element: <Proof /> },
     ],
   },
 ])
