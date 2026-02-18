@@ -26,6 +26,17 @@ export function useHistory() {
     })
   }, [])
 
+  /** Merge partial changes into a history entry by id */
+  const updateEntry = useCallback((id, changes) => {
+    setHistory((prev) => {
+      const updated = prev.map((e) =>
+        e.id === id ? { ...e, ...changes } : e
+      )
+      saveHistory(updated)
+      return updated
+    })
+  }, [])
+
   const clearHistory = useCallback(() => {
     setHistory([])
     localStorage.removeItem(STORAGE_KEY)
@@ -35,5 +46,5 @@ export function useHistory() {
     return loadHistory().find((e) => e.id === id) ?? null
   }, [])
 
-  return { history, addEntry, clearHistory, getEntry }
+  return { history, addEntry, updateEntry, clearHistory, getEntry }
 }

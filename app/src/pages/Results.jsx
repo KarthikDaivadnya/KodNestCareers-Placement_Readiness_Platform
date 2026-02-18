@@ -1,30 +1,34 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { CheckSquare, BookOpen, Calendar, HelpCircle, Tag, ArrowLeft } from 'lucide-react'
+import {
+  CheckSquare, BookOpen, Calendar, HelpCircle,
+  Tag, ArrowLeft, Copy, Download, Check,
+  ThumbsUp, AlertCircle, Zap,
+} from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/Card'
 import { useHistory } from '../hooks/useHistory'
 
 /* ── category badge colors ───────────────────────────────── */
 const CATEGORY_COLORS = {
-  'Core CS':      'bg-blue-50 text-blue-700 border border-blue-100',
-  'Languages':    'bg-purple-50 text-purple-700 border border-purple-100',
-  'Web':          'bg-primary-50 text-primary-700 border border-primary-100',
-  'Data':         'bg-amber-50 text-amber-700 border border-amber-100',
-  'Cloud/DevOps': 'bg-teal-50 text-teal-700 border border-teal-100',
-  'Testing':      'bg-pink-50 text-pink-700 border border-pink-100',
-  'General':      'bg-gray-100 text-gray-600 border border-gray-200',
+  'Core CS':      { base: 'bg-blue-50 text-blue-700 border border-blue-100',   know: 'bg-blue-500 text-white border-blue-500' },
+  'Languages':    { base: 'bg-purple-50 text-purple-700 border border-purple-100', know: 'bg-purple-500 text-white border-purple-500' },
+  'Web':          { base: 'bg-primary-50 text-primary-700 border border-primary-100', know: 'bg-primary-500 text-white border-primary-500' },
+  'Data':         { base: 'bg-amber-50 text-amber-700 border border-amber-100',  know: 'bg-amber-500 text-white border-amber-500' },
+  'Cloud/DevOps': { base: 'bg-teal-50 text-teal-700 border border-teal-100',    know: 'bg-teal-500 text-white border-teal-500' },
+  'Testing':      { base: 'bg-pink-50 text-pink-700 border border-pink-100',    know: 'bg-pink-500 text-white border-pink-500' },
+  'General':      { base: 'bg-gray-100 text-gray-600 border border-gray-200',   know: 'bg-gray-500 text-white border-gray-500' },
 }
 
-/* ── Circular readiness indicator ───────────────────────── */
+/* ── SVG Readiness Gauge ─────────────────────────────────── */
 function ReadinessGauge({ score }) {
   const radius = 44
   const stroke = 7
   const circ   = 2 * Math.PI * radius
-  const offset = circ - (score / 100) * circ
+  const offset = circ - (Math.max(0, Math.min(100, score)) / 100) * circ
   const color  = score >= 70 ? '#16a34a' : score >= 50 ? 'hsl(245,58%,51%)' : '#dc2626'
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex flex-col items-center gap-1.5">
       <svg width="110" height="110" viewBox="0 0 110 110">
         <circle cx="55" cy="55" r={radius} fill="none" stroke="#e5e7eb" strokeWidth={stroke} />
         <circle
@@ -32,38 +36,152 @@ function ReadinessGauge({ score }) {
           stroke={color} strokeWidth={stroke} strokeLinecap="round"
           strokeDasharray={circ} strokeDashoffset={offset}
           transform="rotate(-90 55 55)"
-          style={{ transition: 'stroke-dashoffset 0.8s ease-in-out' }}
+          style={{ transition: 'stroke-dashoffset 0.4s ease-in-out' }}
         />
         <text x="55" y="51" textAnchor="middle" dominantBaseline="middle"
           fontSize="22" fontWeight="700" fill="#111827" fontFamily="Inter,sans-serif">{score}</text>
         <text x="55" y="67" textAnchor="middle" fontSize="10"
           fill="#9ca3af" fontFamily="Inter,sans-serif">/ 100</text>
       </svg>
-      <p className="text-xs font-medium text-gray-500">Readiness Score</p>
+      <p className="text-xs font-medium text-gray-500">Live Score</p>
     </div>
   )
 }
 
+/* ── Copy button with feedback ───────────────────────────── */
+function CopyButton({ label, onCopy }) {
+  const [copied, setCopied] = useState(false)
+  const handleClick = () => {
+    onCopy()
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+  return (
+    <button
+      onClick={handleClick}
+      className="inline-flex items-center gap-1.5 text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 px-3 py-1.5 rounded-lg transition-colors"
+    >
+      {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+      {copied ? 'Copied!' : label}
+    </button>
+  )
+}
+
+/* ── Export helpers ──────────────────────────────────────── */
+function planToText(plan) {
+  return plan.map(b => `${b.days} — ${b.focus}\n${b.tasks.map(t => `  • ${t}`).join('\n')}`).join('\n\n')
+}
+function checklistToText(checklist) {
+  return checklist.map(r => `${r.round}\n${r.items.map(i => `  □ ${i}`).join('\n')}`).join('\n\n')
+}
+function questionsToText(questions) {
+  return questions.map((q, i) => `${i + 1}. ${q}`).join('\n')
+}
+function downloadTXT(analysis, liveScore, confidenceMap) {
+  const skills = Object.entries(analysis.extractedSkills)
+    .map(([cat, list]) => `${cat}: ${list.join(', ')}`)
+    .join('\n')
+
+  const confLines = Object.entries(confidenceMap)
+    .map(([sk, v]) => `  ${v === 'know' ? '✓' : '○'} ${sk} — ${v === 'know' ? 'I know this' : 'Need practice'}`)
+    .join('\n')
+
+  const text = [
+    `KodNest JD Analysis Report`,
+    `Company: ${analysis.company || '—'}`,
+    `Role: ${analysis.role || '—'}`,
+    `Date: ${new Date(analysis.createdAt).toLocaleString()}`,
+    `Readiness Score: ${liveScore}/100`,
+    `\n── SKILLS DETECTED ──\n${skills}`,
+    `\n── SKILL CONFIDENCE ──\n${confLines}`,
+    `\n── ROUND-WISE CHECKLIST ──\n${checklistToText(analysis.checklist)}`,
+    `\n── 7-DAY STUDY PLAN ──\n${planToText(analysis.plan)}`,
+    `\n── INTERVIEW QUESTIONS ──\n${questionsToText(analysis.questions)}`,
+  ].join('\n')
+
+  const blob = new Blob([text], { type: 'text/plain' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = `${(analysis.company || 'kodnest').toLowerCase().replace(/\s+/g, '-')}-prep.txt`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+/* ── Main Results Component ──────────────────────────────── */
 export default function Results() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { getEntry } = useHistory()
-  const [analysis, setAnalysis] = useState(null)
-  const [checked, setChecked]   = useState({}) // { "R0-2": true }
+  const { getEntry, updateEntry } = useHistory()
 
+  const [analysis,      setAnalysis]      = useState(null)
+  const [checked,       setChecked]       = useState({})        // checklist ticks
+  const [confidenceMap, setConfidenceMap] = useState({})        // skill → 'know' | 'practice'
+  const [liveScore,     setLiveScore]     = useState(0)
+
+  /* Load analysis on mount */
   useEffect(() => {
     let result = null
     const id = location.state?.analysisId
     if (id) result = getEntry(id)
     if (!result) {
-      try { result = JSON.parse(localStorage.getItem('kn_latest_analysis')) } catch { /* */ }
+      try { result = JSON.parse(localStorage.getItem('kn_latest_analysis')) } catch { /**/ }
     }
+    if (!result) return
+
     setAnalysis(result)
+    setLiveScore(result.readinessScore)
+
+    // Init confidence map: use saved map or default all to 'practice'
+    const allSkills = Object.values(result.extractedSkills).flat()
+    const saved     = result.skillConfidenceMap ?? {}
+    const initMap   = {}
+    allSkills.forEach(s => { initMap[s] = saved[s] ?? 'practice' })
+    setConfidenceMap(initMap)
   }, [location.state, getEntry])
 
-  const toggleCheck = (key) =>
-    setChecked((prev) => ({ ...prev, [key]: !prev[key] }))
+  /* Recompute live score whenever confidenceMap changes */
+  useEffect(() => {
+    if (!analysis) return
+    const knowCount     = Object.values(confidenceMap).filter(v => v === 'know').length
+    const practiceCount = Object.values(confidenceMap).filter(v => v === 'practice').length
+    const newScore      = Math.max(0, Math.min(100,
+      analysis.readinessScore + knowCount * 2 - practiceCount * 2
+    ))
+    setLiveScore(newScore)
+  }, [confidenceMap, analysis])
 
+  /* Persist confidence changes to localStorage */
+  const persistConfidence = useCallback((newMap, newScore) => {
+    if (!analysis) return
+
+    // Update latest analysis blob
+    const updated = { ...analysis, skillConfidenceMap: newMap, liveScore: newScore }
+    localStorage.setItem('kn_latest_analysis', JSON.stringify(updated))
+
+    // Update history entry
+    updateEntry(analysis.id, { skillConfidenceMap: newMap, liveScore: newScore })
+  }, [analysis, updateEntry])
+
+  const toggleSkill = (skill) => {
+    setConfidenceMap(prev => {
+      const next = { ...prev, [skill]: prev[skill] === 'know' ? 'practice' : 'know' }
+      // Score computed in effect, but also persist with current liveScore estimate
+      const knowCount     = Object.values(next).filter(v => v === 'know').length
+      const practiceCount = Object.values(next).filter(v => v === 'practice').length
+      const newScore      = Math.max(0, Math.min(100,
+        analysis.readinessScore + knowCount * 2 - practiceCount * 2
+      ))
+      persistConfidence(next, newScore)
+      return next
+    })
+  }
+
+  const toggleCheck = (key) => setChecked(prev => ({ ...prev, [key]: !prev[key] }))
+
+  /* ── Empty state ─── */
   if (!analysis) {
     return (
       <div className="max-w-xl flex flex-col items-center text-center gap-4 py-16">
@@ -80,11 +198,18 @@ export default function Results() {
     )
   }
 
-  const { company, role, createdAt, extractedSkills, readinessScore, checklist, plan, questions } = analysis
+  const { company, role, createdAt, extractedSkills, checklist, plan, questions } = analysis
+
+  // Top 3 weak skills (practice-marked)
+  const weakSkills = Object.entries(confidenceMap)
+    .filter(([, v]) => v === 'practice')
+    .slice(0, 3)
+    .map(([sk]) => sk)
 
   return (
     <div className="max-w-5xl">
-      {/* Header */}
+
+      {/* ── Page header ─── */}
       <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
         <div>
           <button
@@ -100,35 +225,85 @@ export default function Results() {
             Analyzed {new Date(createdAt).toLocaleString()}
           </p>
         </div>
-        <ReadinessGauge score={readinessScore} />
+        <ReadinessGauge score={liveScore} />
+      </div>
+
+      {/* ── Export toolbar ─── */}
+      <div className="flex flex-wrap gap-2 mb-5 p-4 bg-white border border-gray-200 rounded-xl">
+        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider self-center mr-1">Export</span>
+        <CopyButton label="Copy 7-day plan"     onCopy={() => navigator.clipboard.writeText(planToText(plan))} />
+        <CopyButton label="Copy checklist"       onCopy={() => navigator.clipboard.writeText(checklistToText(checklist))} />
+        <CopyButton label="Copy questions"       onCopy={() => navigator.clipboard.writeText(questionsToText(questions))} />
+        <button
+          onClick={() => downloadTXT(analysis, liveScore, confidenceMap)}
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 px-3 py-1.5 rounded-lg transition-colors"
+        >
+          <Download className="w-3.5 h-3.5" />
+          Download .txt
+        </button>
       </div>
 
       <div className="flex flex-col gap-5">
 
-        {/* 1. Extracted Skills */}
+        {/* 1. Extracted Skills — with confidence toggles */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Tag className="w-4 h-4 text-primary-500" />
-              Key Skills Extracted
-            </CardTitle>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="flex items-center gap-2">
+                <Tag className="w-4 h-4 text-primary-500" />
+                Key Skills Extracted
+              </CardTitle>
+              <p className="text-xs text-gray-400">Click a skill to toggle confidence</p>
+            </div>
           </CardHeader>
           <CardContent>
-            {Object.entries(extractedSkills).map(([cat, skills]) => (
-              <div key={cat} className="mb-3 last:mb-0">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">{cat}</p>
-                <div className="flex flex-wrap gap-2">
-                  {skills.map((skill) => (
-                    <span
-                      key={skill}
-                      className={`text-xs font-medium px-2.5 py-1 rounded-full ${CATEGORY_COLORS[cat] ?? CATEGORY_COLORS.General}`}
-                    >
-                      {skill}
-                    </span>
-                  ))}
+            {Object.entries(extractedSkills).map(([cat, skills]) => {
+              const colors = CATEGORY_COLORS[cat] ?? CATEGORY_COLORS.General
+              return (
+                <div key={cat} className="mb-4 last:mb-0">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{cat}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {skills.map((skill) => {
+                      const isKnow = confidenceMap[skill] === 'know'
+                      return (
+                        <button
+                          key={skill}
+                          onClick={() => toggleSkill(skill)}
+                          title={isKnow ? 'Click to mark "Need practice"' : 'Click to mark "I know this"'}
+                          className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full transition-all duration-150 select-none ${
+                            isKnow ? colors.know : colors.base
+                          }`}
+                        >
+                          {isKnow
+                            ? <ThumbsUp className="w-3 h-3" />
+                            : <AlertCircle className="w-3 h-3 opacity-60" />
+                          }
+                          {skill}
+                          <span className="opacity-70 font-normal">
+                            {isKnow ? ' · know' : ' · practice'}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
+
+            {/* Confidence summary bar */}
+            <div className="mt-4 flex items-center gap-3 text-xs text-gray-500 border-t border-gray-100 pt-3">
+              <span className="flex items-center gap-1 text-green-600 font-medium">
+                <ThumbsUp className="w-3.5 h-3.5" />
+                {Object.values(confidenceMap).filter(v => v === 'know').length} known
+              </span>
+              <span className="flex items-center gap-1 text-amber-600 font-medium">
+                <AlertCircle className="w-3.5 h-3.5" />
+                {Object.values(confidenceMap).filter(v => v === 'practice').length} need practice
+              </span>
+              <span className="ml-auto text-gray-400">
+                Score adjusts ±2 per skill
+              </span>
+            </div>
           </CardContent>
         </Card>
 
@@ -226,7 +401,7 @@ export default function Results() {
           </CardContent>
         </Card>
 
-        {/* 5. Resources panel */}
+        {/* 5. Quick Resources */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -244,17 +419,55 @@ export default function Results() {
                 { label: 'InterviewBit',    url: 'https://interviewbit.com' },
                 { label: 'CS Cheat Sheets', url: 'https://github.com/jwasham/coding-interview-university' },
               ].map(({ label, url }) => (
-                <a
-                  key={label}
-                  href={url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 px-3 py-2 rounded-lg text-center transition-colors"
-                >
+                <a key={label} href={url} target="_blank" rel="noreferrer"
+                  className="text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 px-3 py-2 rounded-lg text-center transition-colors">
                   {label}
                 </a>
               ))}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* 6. Action Next box */}
+        <Card className="border-primary-100 bg-primary-50/40">
+          <CardContent className="py-5 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-primary-500" />
+              <span className="text-sm font-semibold text-gray-900">Action Next</span>
+            </div>
+
+            {weakSkills.length > 0 ? (
+              <>
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                    Top skills to strengthen
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {weakSkills.map(sk => (
+                      <span key={sk} className="text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100 px-2.5 py-1 rounded-full">
+                        {sk}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-sm text-gray-700">
+                  You have <strong>{Object.values(confidenceMap).filter(v => v === 'practice').length} skills</strong> to strengthen.
+                  {' '}Start Day 1 plan now — focus on Core CS and basics first.
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-gray-700">
+                You've marked all skills as known. Great confidence!
+                Run a mock interview to validate your readiness.
+              </p>
+            )}
+
+            <button
+              onClick={() => navigate('/dashboard/analyzer')}
+              className="self-start text-xs font-semibold text-primary-600 bg-white border border-primary-200 hover:border-primary-400 px-4 py-2 rounded-lg transition-colors"
+            >
+              Analyze another JD →
+            </button>
           </CardContent>
         </Card>
 
