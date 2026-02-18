@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { Clock, Trash2, ChevronRight, BarChart2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/Card'
-import { useHistory } from '../hooks/useHistory'
+import { useHistory, loadHistory } from '../hooks/useHistory'
 
 function scoreColor(score) {
   if (score >= 70) return 'text-green-600 bg-green-50'
@@ -14,7 +14,10 @@ export default function History() {
   const { history, clearHistory } = useHistory()
 
   const openResult = (entry) => {
-    localStorage.setItem('kn_latest_analysis', JSON.stringify(entry))
+    // Always read the LATEST version from localStorage (includes any
+    // skill-confidence toggles saved after the initial analysis).
+    const fresh = loadHistory().find((e) => e.id === entry.id) ?? entry
+    localStorage.setItem('kn_latest_analysis', JSON.stringify(fresh))
     navigate('/dashboard/results', { state: { analysisId: entry.id } })
   }
 
@@ -61,9 +64,9 @@ export default function History() {
               <Card className="hover:border-primary-200 transition-colors duration-150">
                 <CardContent className="flex items-center justify-between py-4">
                   <div className="flex items-center gap-4">
-                    {/* Score badge */}
-                    <div className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${scoreColor(entry.readinessScore)}`}>
-                      {entry.readinessScore}
+                    {/* Score badge — show liveScore if toggles were made, else base score */}
+                    <div className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${scoreColor(entry.liveScore ?? entry.readinessScore)}`}>
+                      {entry.liveScore ?? entry.readinessScore}
                     </div>
 
                     <div>
@@ -111,13 +114,13 @@ export default function History() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900">
-                  {Math.round(history.reduce((a, e) => a + e.readinessScore, 0) / history.length)}
+                  {Math.round(history.reduce((a, e) => a + (e.liveScore ?? e.readinessScore), 0) / history.length)}
                 </p>
                 <p className="text-xs text-gray-400">Avg Score</p>
               </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900">
-                  {Math.max(...history.map((e) => e.readinessScore))}
+                  {Math.max(...history.map((e) => e.liveScore ?? e.readinessScore))}
                 </p>
                 <p className="text-xs text-gray-400">Best Score</p>
               </div>

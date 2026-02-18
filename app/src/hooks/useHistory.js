@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 
 const STORAGE_KEY = 'kn_analysis_history'
 
-function loadHistory() {
+export function loadHistory() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     return raw ? JSON.parse(raw) : []
@@ -19,29 +19,33 @@ export function useHistory() {
   const [history, setHistory] = useState(loadHistory)
 
   const addEntry = useCallback((entry) => {
-    setHistory((prev) => {
-      const updated = [entry, ...prev]
-      saveHistory(updated)
-      return updated
-    })
+    // Read fresh from localStorage — avoids stale React state
+    const current = loadHistory()
+    const updated = [entry, ...current]
+    saveHistory(updated)
+    setHistory(updated)
   }, [])
 
-  /** Merge partial changes into a history entry by id */
+  /**
+   * Merge partial changes into an existing history entry.
+   * Always reads fresh from localStorage so concurrent hook
+   * instances don't clobber each other.
+   */
   const updateEntry = useCallback((id, changes) => {
-    setHistory((prev) => {
-      const updated = prev.map((e) =>
-        e.id === id ? { ...e, ...changes } : e
-      )
-      saveHistory(updated)
-      return updated
-    })
+    const current = loadHistory()           // always fresh
+    const updated = current.map((e) =>
+      e.id === id ? { ...e, ...changes } : e
+    )
+    saveHistory(updated)                    // persist immediately
+    setHistory(updated)                     // sync React state
   }, [])
 
   const clearHistory = useCallback(() => {
+    saveHistory([])
     setHistory([])
-    localStorage.removeItem(STORAGE_KEY)
   }, [])
 
+  /** Always returns fresh data straight from localStorage */
   const getEntry = useCallback((id) => {
     return loadHistory().find((e) => e.id === id) ?? null
   }, [])

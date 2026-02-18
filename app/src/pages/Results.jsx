@@ -153,16 +153,21 @@ export default function Results() {
     setLiveScore(newScore)
   }, [confidenceMap, analysis])
 
-  /* Persist confidence changes to localStorage */
+  /* Persist confidence changes to localStorage + React state */
   const persistConfidence = useCallback((newMap, newScore) => {
     if (!analysis) return
 
-    // Update latest analysis blob
+    // 1. Build updated object
     const updated = { ...analysis, skillConfidenceMap: newMap, liveScore: newScore }
+
+    // 2. Write to kn_latest_analysis synchronously
     localStorage.setItem('kn_latest_analysis', JSON.stringify(updated))
 
-    // Update history entry
+    // 3. Write to kn_analysis_history (reads fresh, no stale-state risk)
     updateEntry(analysis.id, { skillConfidenceMap: newMap, liveScore: newScore })
+
+    // 4. Keep component-local analysis in sync so re-toggles use correct base
+    setAnalysis(updated)
   }, [analysis, updateEntry])
 
   const toggleSkill = (skill) => {
