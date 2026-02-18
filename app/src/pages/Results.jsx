@@ -237,7 +237,8 @@ export default function Results() {
     if (!result) return
 
     setAnalysis(result)
-    setLiveScore(result.readinessScore)
+    // finalScore > liveScore > baseScore > readinessScore (backwards compat chain)
+    setLiveScore(result.finalScore ?? result.liveScore ?? result.baseScore ?? result.readinessScore)
 
     // Init confidence map: use saved map or default all to 'practice'
     const allSkills = Object.values(result.extractedSkills).flat()
@@ -250,11 +251,10 @@ export default function Results() {
   /* Recompute live score whenever confidenceMap changes */
   useEffect(() => {
     if (!analysis) return
+    const base          = analysis.baseScore ?? analysis.readinessScore
     const knowCount     = Object.values(confidenceMap).filter(v => v === 'know').length
     const practiceCount = Object.values(confidenceMap).filter(v => v === 'practice').length
-    const newScore      = Math.max(0, Math.min(100,
-      analysis.readinessScore + knowCount * 2 - practiceCount * 2
-    ))
+    const newScore      = Math.max(0, Math.min(100, base + knowCount * 2 - practiceCount * 2))
     setLiveScore(newScore)
   }, [confidenceMap, analysis])
 
@@ -262,14 +262,21 @@ export default function Results() {
   const persistConfidence = useCallback((newMap, newScore) => {
     if (!analysis) return
 
-    // 1. Build updated object
-    const updated = { ...analysis, skillConfidenceMap: newMap, liveScore: newScore }
+    // 1. Build updated object — persist finalScore + updatedAt
+    const now     = new Date().toISOString()
+    const updated = {
+      ...analysis,
+      skillConfidenceMap: newMap,
+      finalScore:  newScore,
+      liveScore:   newScore,   // kept for backward compat with old entries
+      updatedAt:   now,
+    }
 
     // 2. Write to kn_latest_analysis synchronously
     localStorage.setItem('kn_latest_analysis', JSON.stringify(updated))
 
     // 3. Write to kn_analysis_history (reads fresh, no stale-state risk)
-    updateEntry(analysis.id, { skillConfidenceMap: newMap, liveScore: newScore })
+    updateEntry(analysis.id, { skillConfidenceMap: newMap, finalScore: newScore, liveScore: newScore, updatedAt: now })
 
     // 4. Keep component-local analysis in sync so re-toggles use correct base
     setAnalysis(updated)
@@ -281,9 +288,8 @@ export default function Results() {
       // Score computed in effect, but also persist with current liveScore estimate
       const knowCount     = Object.values(next).filter(v => v === 'know').length
       const practiceCount = Object.values(next).filter(v => v === 'practice').length
-      const newScore      = Math.max(0, Math.min(100,
-        analysis.readinessScore + knowCount * 2 - practiceCount * 2
-      ))
+      const base          = analysis.baseScore ?? analysis.readinessScore
+      const newScore      = Math.max(0, Math.min(100, base + knowCount * 2 - practiceCount * 2))
       persistConfidence(next, newScore)
       return next
     })

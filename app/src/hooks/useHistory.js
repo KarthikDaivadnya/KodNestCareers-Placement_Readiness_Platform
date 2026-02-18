@@ -2,13 +2,37 @@ import { useState, useCallback } from 'react'
 
 const STORAGE_KEY = 'kn_analysis_history'
 
-export function loadHistory() {
+/** Minimum fields required for an entry to be considered valid */
+function isValidEntry(entry) {
+  return (
+    entry !== null &&
+    typeof entry === 'object' &&
+    typeof entry.id === 'string' && entry.id.length > 0 &&
+    typeof entry.createdAt === 'string' &&
+    entry.extractedSkills !== null &&
+    typeof entry.extractedSkills === 'object'
+  )
+}
+
+/** Read raw array from localStorage. Returns { entries, corruptedCount }. */
+function readFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
+    if (!raw) return { entries: [], corruptedCount: 0 }
+
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return { entries: [], corruptedCount: 1 }
+
+    const valid   = parsed.filter(isValidEntry)
+    return { entries: valid, corruptedCount: parsed.length - valid.length }
   } catch {
-    return []
+    return { entries: [], corruptedCount: 1 }
   }
+}
+
+/** Public helper — returns clean entries array (used by History.jsx openResult) */
+export function loadHistory() {
+  return readFromStorage().entries
 }
 
 function saveHistory(entries) {
@@ -16,10 +40,10 @@ function saveHistory(entries) {
 }
 
 export function useHistory() {
-  const [history, setHistory] = useState(loadHistory)
+  const [history,        setHistory]        = useState(() => readFromStorage().entries)
+  const [corruptedCount, setCorruptedCount] = useState(() => readFromStorage().corruptedCount)
 
   const addEntry = useCallback((entry) => {
-    // Read fresh from localStorage — avoids stale React state
     const current = loadHistory()
     const updated = [entry, ...current]
     saveHistory(updated)
@@ -28,21 +52,21 @@ export function useHistory() {
 
   /**
    * Merge partial changes into an existing history entry.
-   * Always reads fresh from localStorage so concurrent hook
-   * instances don't clobber each other.
+   * Always reads fresh from localStorage — no stale-state risk.
    */
   const updateEntry = useCallback((id, changes) => {
-    const current = loadHistory()           // always fresh
+    const current = loadHistory()
     const updated = current.map((e) =>
       e.id === id ? { ...e, ...changes } : e
     )
-    saveHistory(updated)                    // persist immediately
-    setHistory(updated)                     // sync React state
+    saveHistory(updated)
+    setHistory(updated)
   }, [])
 
   const clearHistory = useCallback(() => {
     saveHistory([])
     setHistory([])
+    setCorruptedCount(0)
   }, [])
 
   /** Always returns fresh data straight from localStorage */
@@ -50,5 +74,5 @@ export function useHistory() {
     return loadHistory().find((e) => e.id === id) ?? null
   }, [])
 
-  return { history, addEntry, updateEntry, clearHistory, getEntry }
+  return { history, corruptedCount, addEntry, updateEntry, clearHistory, getEntry }
 }

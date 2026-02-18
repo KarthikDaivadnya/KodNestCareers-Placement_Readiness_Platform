@@ -11,7 +11,7 @@ function scoreColor(score) {
 
 export default function History() {
   const navigate = useNavigate()
-  const { history, clearHistory } = useHistory()
+  const { history, corruptedCount, clearHistory } = useHistory()
 
   const openResult = (entry) => {
     // Always read the LATEST version from localStorage (includes any
@@ -39,6 +39,18 @@ export default function History() {
         )}
       </div>
 
+      {corruptedCount > 0 && (
+        <div className="mb-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs px-4 py-3 rounded-xl">
+          <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 16 16" stroke="currentColor" strokeWidth="1.8">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 6v4m0 2h.01M8 2a6 6 0 100 12A6 6 0 008 2z" />
+          </svg>
+          <span>
+            {corruptedCount} saved {corruptedCount === 1 ? 'entry' : 'entries'} could not be loaded and {corruptedCount === 1 ? 'was' : 'were'} skipped.
+            {' '}Create a new analysis to replace {corruptedCount === 1 ? 'it' : 'them'}.
+          </span>
+        </div>
+      )}
+
       {history.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center text-center gap-3 py-14">
@@ -64,9 +76,9 @@ export default function History() {
               <Card className="hover:border-primary-200 transition-colors duration-150">
                 <CardContent className="flex items-center justify-between py-4">
                   <div className="flex items-center gap-4">
-                    {/* Score badge — show liveScore if toggles were made, else base score */}
-                    <div className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${scoreColor(entry.liveScore ?? entry.readinessScore)}`}>
-                      {entry.liveScore ?? entry.readinessScore}
+                    {/* Score badge — finalScore > liveScore > readinessScore (compat chain) */}
+                    <div className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${scoreColor(entry.finalScore ?? entry.liveScore ?? entry.readinessScore)}`}>
+                      {entry.finalScore ?? entry.liveScore ?? entry.readinessScore}
                     </div>
 
                     <div>
@@ -114,13 +126,13 @@ export default function History() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900">
-                  {Math.round(history.reduce((a, e) => a + (e.liveScore ?? e.readinessScore), 0) / history.length)}
+                  {Math.round(history.reduce((a, e) => a + (e.finalScore ?? e.liveScore ?? e.readinessScore), 0) / history.length)}
                 </p>
                 <p className="text-xs text-gray-400">Avg Score</p>
               </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900">
-                  {Math.max(...history.map((e) => e.liveScore ?? e.readinessScore))}
+                  {Math.max(...history.map((e) => e.finalScore ?? e.liveScore ?? e.readinessScore))}
                 </p>
                 <p className="text-xs text-gray-400">Best Score</p>
               </div>

@@ -9,17 +9,30 @@ export default function Analyzer() {
   const navigate = useNavigate()
   const { addEntry } = useHistory()
 
-  const [company, setCompany] = useState('')
-  const [role, setRole]       = useState('')
-  const [jdText, setJdText]   = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState('')
+  const [company,   setCompany]   = useState('')
+  const [role,      setRole]      = useState('')
+  const [jdText,    setJdText]    = useState('')
+  const [loading,   setLoading]   = useState(false)
+  const [error,     setError]     = useState('')
+  const [jdWarning, setJdWarning] = useState('')
+
+  const handleJdChange = (e) => {
+    const val = e.target.value
+    setJdText(val)
+    setError('')
+    if (val.trim().length > 0 && val.trim().length < 200) {
+      setJdWarning('This JD is too short to analyze deeply. Paste the full job description for better output.')
+    } else {
+      setJdWarning('')
+    }
+  }
 
   const handleAnalyze = () => {
     if (!jdText.trim()) {
-      setError('Please paste a job description to analyze.')
+      setError('Paste a job description to analyze.')
       return
     }
+    setJdWarning('')
     setError('')
     setLoading(true)
 
@@ -83,9 +96,20 @@ export default function Analyzer() {
               rows={14}
               placeholder={`Paste the full job description here...\n\nExample:\n"We are looking for a Software Development Engineer with strong DSA skills, experience in Java or Python, familiarity with SQL and MongoDB, and knowledge of REST APIs and Docker."`}
               value={jdText}
-              onChange={(e) => { setJdText(e.target.value); setError('') }}
+              onChange={handleJdChange}
               className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400 transition-all resize-y leading-relaxed"
             />
+
+            {/* JD too short — calm amber warning */}
+            {jdWarning && (
+              <div className="mt-2 flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3 py-2 rounded-lg">
+                <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 16 16" stroke="currentColor" strokeWidth="1.8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 6v4m0 2h.01M8 2a6 6 0 100 12A6 6 0 008 2z" />
+                </svg>
+                {jdWarning}
+              </div>
+            )}
+
             <div className="flex items-center justify-between mt-2">
               <span className={`text-xs ${jdText.length > 800 ? 'text-green-600' : 'text-gray-400'}`}>
                 {jdText.length} characters

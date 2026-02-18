@@ -68,8 +68,14 @@ export function extractSkills(jdText) {
     if (found.length > 0) detected[category] = found
   }
 
+  // Default: no skills detected → use General fallback
   if (Object.keys(detected).length === 0) {
-    detected['General'] = ['General Fresher Stack']
+    detected['General'] = [
+      'Communication',
+      'Problem solving',
+      'Basic coding',
+      'Projects',
+    ]
   }
 
   return detected
@@ -317,23 +323,43 @@ export function generatePlan(extractedSkills) {
 // ── 6. Master analysis function ───────────────────────────────
 export function analyzeJD({ company, role, jdText }) {
   const extractedSkills = extractSkills(jdText)
-  const readinessScore  = calcReadinessScore({ extractedSkills, company, role, jdText })
+  const baseScore       = calcReadinessScore({ extractedSkills, company, role, jdText })
   const checklist       = generateChecklist(extractedSkills)
   const plan            = generatePlan(extractedSkills)
   const questions       = generateQuestions(extractedSkills)
   const companyIntel    = buildCompanyIntel(company, extractedSkills)
 
+  // Initialise every skill to 'practice' — user adjusts on Results page
+  const allSkills = Object.values(extractedSkills).flat()
+  const skillConfidenceMap = {}
+  allSkills.forEach(s => { skillConfidenceMap[s] = 'practice' })
+
+  const now = new Date().toISOString()
+
   return {
-    id:             crypto.randomUUID(),
-    createdAt:      new Date().toISOString(),
-    company:        company.trim(),
-    role:           role.trim(),
-    jdText:         jdText.trim(),
+    // Identity
+    id:                crypto.randomUUID(),
+    createdAt:         now,
+    updatedAt:         now,
+
+    // Context
+    company:           (company ?? '').trim(),
+    role:              (role ?? '').trim(),
+    jdText:            jdText.trim(),
+
+    // Extracted data
     extractedSkills,
-    readinessScore,
+    companyIntel,
     checklist,
     plan,
     questions,
-    companyIntel,
+
+    // Score — baseScore is immutable; finalScore changes with toggles
+    baseScore,
+    readinessScore:    baseScore,   // kept for backward compat with old history entries
+    finalScore:        baseScore,   // = baseScore until user toggles skills
+
+    // Skill confidence (all 'practice' on first load)
+    skillConfidenceMap,
   }
 }
