@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   CheckCircle2, Circle, Copy, Check,
@@ -39,9 +39,11 @@ const STEPS = [
       try {
         const h = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]')
         if (!Array.isArray(h) || h.length === 0) return false
-        const latest = h[0]
-        const cats   = Object.keys(latest?.extractedSkills ?? {})
-        return cats.length > 0 && !cats.every(c => c === 'General')
+        // Pass if ANY entry has skills beyond the General fallback
+        return h.some(entry => {
+          const cats = Object.keys(entry?.extractedSkills ?? {})
+          return cats.length > 0 && cats.some(c => c !== 'General')
+        })
       } catch { return false }
     },
   },
@@ -193,7 +195,14 @@ function CopyButton({ text, label }) {
 /* ── Main Component ──────────────────────────────────────────── */
 export default function Proof() {
   const navigate = useNavigate()
-  const [links, setLinks] = useState(loadLinks)
+  const [links,      setLinks]      = useState(loadLinks)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  // Re-evaluate steps every 3 seconds (catches returning from Analyzer)
+  useEffect(() => {
+    const id = setInterval(() => setRefreshKey(k => k + 1), 3000)
+    return () => clearInterval(id)
+  }, [])
 
   // Persist links on every change
   const setLink = (field) => (value) => {
@@ -202,12 +211,11 @@ export default function Proof() {
     setLinks(next)
   }
 
-  // Evaluate step statuses — recomputed on every render (links change triggers re-render)
-  const stepStatuses = useMemo(() =>
-    STEPS.map(s => ({ ...s, completed: s.check(links) })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [links.lovable, links.github, links.deployed]
-  )
+  // Evaluate ALL step statuses on every render — cheap localStorage reads, no stale cache
+  // refreshKey and links are both dependencies so steps update whenever either changes
+  const stepStatuses = STEPS.map(s => ({ ...s, completed: s.check(links) }))
+  // eslint-disable-next-line no-unused-vars -- refreshKey referenced to keep steps fresh
+  void refreshKey
 
   const completedCount = stepStatuses.filter(s => s.completed).length
   const allStepsComplete = completedCount === STEPS.length
